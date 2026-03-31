@@ -1,0 +1,2 @@
+window.OCTAFAS_SUPABASE_URL = "https://ytuxebadfvymqmnqijcy.supabase.co";
+window.OCTAFAS_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0dXhlYmFkZnZ5bXFtbnFpamN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5Mzc4NzIsImV4cCI6MjA5MDUxMzg3Mn0.B4_FSQL9vvbEg61Ssvz9evzYAloBupItqehlwRmNrMc";
