@@ -726,7 +726,18 @@ const TABS = [
 
 const state = loadState();
 
+const supabaseClient =
+  window.supabase &&
+  window.OCTAFAS_SUPABASE_URL &&
+  window.OCTAFAS_SUPABASE_ANON_KEY
+    ? window.supabase.createClient(
+        window.OCTAFAS_SUPABASE_URL,
+        window.OCTAFAS_SUPABASE_ANON_KEY
+      )
+    : null;
+
 const els = {
+  saveDbButton: document.getElementById("saveDbButton"),
   channelSelector: document.getElementById("channelSelector"),
   segmentSelect: document.getElementById("segmentSelect"),
   seasonalitySelect: document.getElementById("seasonalitySelect"),
@@ -751,7 +762,19 @@ const els = {
 };
 
 renderStaticControls();
-bindGlobalActions();
+function bindGlobalActions() {
+  els.shareButton.addEventListener("click", shareScenario);
+  els.exportButton.addEventListener("click", exportScenario);
+
+  if (els.saveDbButton) {
+    els.saveDbButton.addEventListener("click", saveScenarioToDatabase);
+  }
+
+  els.resetButton.addEventListener("click", () => {
+    Object.assign(state, JSON.parse(JSON.stringify(DEFAULT_STATE)));
+    render();
+  });
+};
 render();
 
 function loadState() {
@@ -1875,7 +1898,83 @@ async function shareScenario() {
     window.alert("Share dibatalkan atau tidak tersedia pada browser ini.");
   }
 }
+async function ensureSupabaseSession() {
+  if (!supabaseClient) {
+    throw new Error("Supabase belum dikonfigurasi.");
+  }
 
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabaseClient.auth.getSession();
+
+  if (sessionError) throw sessionError;
+  if (session) return session;
+
+  const { data, error } = await supabaseClient.auth.signInAnonymously();
+  if (error) throw error;
+
+  return data.session;
+}
+
+function buildScenarioDbRow(model, userId, scenarioName) {
+  return {
+    scenario_name: scenarioName,
+    user_id: userId,
+    channel_slug: state.channel,
+    segment_slug: state.segment,
+    seasonality_slug: state.seasonality,
+    inputs_json: {
+      ...state,
+    },
+    outputs_json: {
+      projectedGmv: model.current.projectedGmv,
+      projectedProfit: model.current.profit,
+      roas: model.current.roas,
+      breakEvenRoas: model.current.breakEvenRoas,
+      orders: model.current.orders,
+      projectedLtv: model.current.projectedLtv,
+      ncac: model.current.ncac,
+      efficiencyScore: model.efficiencyScore,
+      optimalScaleZone: model.zone,
+      optimalBudget: model.optimal.budget,
+      scenarios: model.scenarios.map((scenario) => ({
+        label: scenario.label,
+        budget: scenario.budget,
+        gmv: scenario.projectedGmv,
+        profit: scenario.profit,
+        roas: scenario.roas,
+      })),
+    },
+  };
+}
+
+async function saveScenarioToDatabase() {
+  try {
+    const session = await ensureSupabaseSession();
+    const model = simulate(state);
+
+    const defaultName = `${CHANNELS[state.channel].label} • ${new Date().toLocaleDateString("id-ID")}`;
+    const scenarioName = window.prompt("Nama skenario", defaultName);
+
+    if (!scenarioName) return;
+
+    const row = buildScenarioDbRow(model, session.user.id, scenarioName);
+
+    const { data, error } = await supabaseClient
+      .from("octafas_saved_scenarios")
+      .insert(row)
+      .select("id, scenario_name, created_at")
+      .single();
+
+    if (error) throw error;
+
+    window.alert(`Skenario "${data.scenario_name}" berhasil disimpan.`);
+  } catch (error) {
+    console.error(error);
+    window.alert(error.message || "Gagal menyimpan skenario ke database.");
+  }
+}
 function exportScenario() {
   const model = simulate(state);
   const payload = {
